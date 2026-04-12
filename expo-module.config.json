@@ -1,0 +1,9 @@
+{
+  "platforms": ["apple", "android", "web"],
+  "apple": {
+    "modules": ["ExpoBackgroundServiceModule"]
+  },
+  "android": {
+    "modules": ["com.serifcicek.expobackgroundservice.ExpoBackgroundServiceModule"]
+  }
+}

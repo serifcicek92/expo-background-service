@@ -1,0 +1,10 @@
+{
+  "extends": "expo/tsconfig.base",
+  "compilerOptions": {
+    "strict": true,
+    "paths": {
+      "@serifcicek92/expo-background-service": ["../src/index"],
+      "@serifcicek92/expo-background-service/*": ["../src/*"]
+    }
+  }
+}
