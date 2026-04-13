@@ -6,14 +6,15 @@ import com.facebook.react.bridge.Arguments
 import com.facebook.react.jstasks.HeadlessJsTaskConfig
 
 class ExpoBackgroundServiceHeadlessTaskService : HeadlessJsTaskService() {
-    override fun getTaskConfig(intent: Intent): HeadlessJsTaskConfig? {
-        val extras = intent.extras
+    // Intent yanına ? koyduk (Nullable yaptık)
+    override fun getTaskConfig(intent: Intent?): HeadlessJsTaskConfig? {
+        val extras = intent?.extras // intent? kullanarak güvenli hale getirdik
         return if (extras != null) {
             HeadlessJsTaskConfig(
-                "MyBackgroundStepTask", // JS tarafındaki isimle aynı olmalı (App.tsx)
+                "MyBackgroundStepTask",
                 Arguments.fromBundle(extras),
-                5000, // 5 saniye zaman aşımı
-                true  // Uygulama kapalıyken çalışmasına izin ver
+                5000,
+                true
             )
         } else {
             null
