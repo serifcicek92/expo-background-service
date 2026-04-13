@@ -36,7 +36,7 @@ class ExpoBackgroundServiceModule : Module() {
     Function("getStepCount") {
       val context = appContext.reactContext ?: return@Function 0
       val prefs = context.getSharedPreferences("StepPrefs", Context.MODE_PRIVATE)
-      return@Function prefs.getInt("real_steps", 0)
+      return@Function prefs.getInt("raw_sensor", 0)
     }
 
     Function("isServiceRunning") {
