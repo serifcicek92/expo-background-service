@@ -8,6 +8,6 @@
     }
   },
   "android": {
-    "modules": ["ExpoBackgroundServiceModule"]
+    "modules": ["com.serifcicek.expobackgroundservice.ExpoBackgroundServiceModule"]
   }
 }
