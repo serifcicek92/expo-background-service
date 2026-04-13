@@ -18,16 +18,17 @@ class StepCounterService : Service(), SensorEventListener {
     private val periodicTask = object : Runnable {
         override fun run() {
             val prefs = getSharedPreferences("StepPrefs", Context.MODE_PRIVATE)
-            // DELTA MOTORU İÇİN HAM VERİYİ OKU
-            val currentRawSteps = prefs.getInt("raw_sensor", 0) 
+            
+            // AYNA MANTIĞI: Artık ham veriyi değil, bildirimde yazan NET veriyi okuyoruz!
+            val currentDisplaySteps = prefs.getInt("exact_notification_steps", 0) 
             
             ExpoBackgroundServiceModule.instance?.sendEvent("onTimerTick", mapOf(
-                "steps" to currentRawSteps
+                "steps" to currentDisplaySteps
             ))
 
             val serviceIntent = Intent(applicationContext, ExpoBackgroundServiceHeadlessTaskService::class.java)
             val bundle = Bundle()
-            bundle.putInt("steps", currentRawSteps) // Hayalet moda HAM veri gidiyor
+            bundle.putInt("steps", currentDisplaySteps) // Hayalet moda da NET veri gidiyor
             serviceIntent.putExtras(bundle)
             applicationContext.startService(serviceIntent)
             
@@ -52,12 +53,10 @@ class StepCounterService : Service(), SensorEventListener {
         intent?.getStringExtra("notificationTitle")?.let { customTitle = it }
         intent?.getStringExtra("notificationBody")?.let { customBody = it }
         
-        // JS'TEN GELEN TABAN ADIMI KAYDET
         val initialSteps = intent?.getIntExtra("initialSteps", 0) ?: 0
         val prefs = getSharedPreferences("StepPrefs", Context.MODE_PRIVATE)
         prefs.edit().putInt("daily_base_steps", initialSteps).apply()
 
-        // Başlangıçta bildirimi bas
         startForeground(NOTIFICATION_ID, getNotification(initialSteps))
         handler.post(periodicTask)
         return START_STICKY 
@@ -73,9 +72,6 @@ class StepCounterService : Service(), SensorEventListener {
         if (event?.sensor?.type == Sensor.TYPE_STEP_COUNTER) {
             val sensorValue = event.values[0].toInt()
             val prefs = getSharedPreferences("StepPrefs", Context.MODE_PRIVATE)
-            
-            // DELTA MOTORU İÇİN HAM VERİYİ KAYDET
-            prefs.edit().putInt("raw_sensor", sensorValue).apply()
 
             val currentDate = java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.getDefault()).format(java.util.Date())
             val savedDate = prefs.getString("saved_date", "")
@@ -83,11 +79,9 @@ class StepCounterService : Service(), SensorEventListener {
             var offset = prefs.getInt("offset_steps", -1)
             var dailyBase = prefs.getInt("daily_base_steps", 0)
 
-            // GECE YARISI VEYA İLK BAŞLANGIÇ KONTROLÜ
             if (offset == -1 || savedDate != currentDate || sensorValue < offset) {
                 offset = sensorValue
                 
-                // Gün değişmişse taban sayıyı (JS'ten gelen) sıfırla ki sabaha 0 kalsın
                 if (savedDate != currentDate && savedDate != "") {
                     dailyBase = 0
                     prefs.edit().putInt("daily_base_steps", 0).apply()
@@ -99,13 +93,17 @@ class StepCounterService : Service(), SensorEventListener {
                     .apply()
             }
 
-            // BİLDİRİMDE GÖRÜNEN SAYI = (Şu anki - Ofset) + JS'ten gelen taban adım
+            // BİLDİRİMDE GÖRÜNEN NET SAYI
             val displaySteps = (sensorValue - offset) + dailyBase
+            
+            // AYNA MANTIĞI: Bu net sayıyı JS her an okuyabilsin diye hafızaya yazıyoruz
+            prefs.edit().putInt("exact_notification_steps", displaySteps).apply()
+
             notificationManager.notify(NOTIFICATION_ID, getNotification(displaySteps))
 
-            // JS'E "HAM" VERİYİ GÖNDER! (Görsel sayıyı değil)
+            // JS'e (Canlı dinleyiciye) artık HAM veriyi değil, BİLDİRİMDEKİ NET SAYIYI gönderiyoruz
             ExpoBackgroundServiceModule.instance?.sendEvent("onStepUpdate", mapOf(
-                "steps" to sensorValue 
+                "steps" to displaySteps 
             ))
         }
     }

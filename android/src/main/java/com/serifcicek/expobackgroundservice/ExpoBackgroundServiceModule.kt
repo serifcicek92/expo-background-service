@@ -33,10 +33,14 @@ class ExpoBackgroundServiceModule : Module() {
       return@Function "Sistem Hazır - Şerif Çiçek"
     }
 
+    // --- AYNA MANTIĞI: EN KRİTİK DEĞİŞİKLİK BURASI ---
     Function("getStepCount") {
       val context = appContext.reactContext ?: return@Function 0
       val prefs = context.getSharedPreferences("StepPrefs", Context.MODE_PRIVATE)
-      return@Function prefs.getInt("raw_sensor", 0)
+      
+      // Artık JS "Bana ham veriyi ver hesaplayayım" demiyor. 
+      // Doğrudan "Bildirimde net kaç yazıyor?" diye soruyor.
+      return@Function prefs.getInt("exact_notification_steps", 0)
     }
 
     Function("isServiceRunning") {
