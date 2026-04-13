@@ -111,7 +111,7 @@ class StepCounterService : Service(), SensorEventListener {
     }
 
     private fun getNotification(steps: Int): Notification {
-        val finalBody = val finalBody = "$steps $customBody"
+        val finalBody = "$steps $customBody"
         return NotificationCompat.Builder(this, "step_channel")
         .setContentTitle(customTitle)
         .setContentText(finalBody)
