@@ -1,48 +1,67 @@
 import ExpoModulesCore
+import CoreMotion
 
 public class ExpoBackgroundServiceModule: Module {
-  // Each module class must implement the definition function. The definition consists of components
-  // that describes the module's functionality and behavior.
-  // See https://docs.expo.dev/modules/module-api for more details about available components.
+  // iOS'un adım sayar motoru
+  private let pedometer = CMPedometer()
+
   public func definition() -> ModuleDefinition {
-    // Sets the name of the module that JavaScript code will use to refer to the module. Takes a string as an argument.
-    // Can be inferred from module's class name, but it's recommended to set it explicitly for clarity.
-    // The module will be accessible from `requireNativeModule('ExpoBackgroundService')` in JavaScript.
+    // Paket ismi JS tarafıyla aynı olmalı
     Name("ExpoBackgroundService")
 
-    // Defines constant property on the module.
-    Constant("PI") {
-      Double.pi
-    }
+    // Android'deki EventEmitter ile aynı isimde kanal açıyoruz
+    Events("onStepUpdate", "onTimerTick")
 
-    // Defines event names that the module can send to JavaScript.
-    Events("onChange")
-
-    // Defines a JavaScript synchronous function that runs the native code on the JavaScript thread.
     Function("hello") {
-      return "Hello world! 👋"
+      return "iOS Sistem Hazır - Şerif Çiçek"
     }
 
-    // Defines a JavaScript function that always returns a Promise and whose native code
-    // is by default dispatched on the different thread than the JavaScript runtime runs on.
-    AsyncFunction("setValueAsync") { (value: String) in
-      // Send an event to JavaScript.
-      self.sendEvent("onChange", [
-        "value": value
-      ])
-    }
-
-    // Enables the module to be used as a native view. Definition components that are accepted as part of the
-    // view definition: Prop, Events.
-    View(ExpoBackgroundServiceView.self) {
-      // Defines a setter for the `url` prop.
-      Prop("url") { (view: ExpoBackgroundServiceView, url: URL) in
-        if view.webView.url != url {
-          view.webView.load(URLRequest(url: url))
-        }
+    // Android'deki getStepCount ile aynı işi yapar
+    AsyncFunction("getStepCount") { (promise: Promise) in
+      guard CMPedometer.isStepCountingAvailable() else {
+        promise.resolve(0)
+        return
       }
 
-      Events("onLoad")
+      let now = Date()
+      let startOfDay = Calendar.current.startOfDay(for: now)
+
+      // Bugünden itibaren olan adımları sorgula
+      pedometer.queryPedometerData(from: startOfDay, to: now) { data, error in
+        if let data = data {
+          promise.resolve(data.numberOfSteps.intValue)
+        } else {
+          promise.resolve(0)
+        }
+      }
+    }
+
+    Function("startService") {
+      self.startStepUpdates()
+      return "iOS Adım Takibi Başlatıldı"
+    }
+
+    Function("stopService") {
+      self.pedometer.stopUpdates()
+      return "iOS Adım Takibi Durduruldu"
+    }
+    
+    // iOS'ta servis durumu kontrolü (Sensör aktif mi?)
+    Function("isServiceRunning") {
+        return true // iOS'ta sensör erişimi genellikle sistem seviyesindedir
+    }
+  }
+
+  private func startStepUpdates() {
+    guard CMPedometer.isStepCountingAvailable() else { return }
+
+    pedometer.startUpdates(from: Date()) { [weak self] data, error in
+      guard let data = data else { return }
+      
+      // JS tarafındaki addStepListener'ı tetikler
+      self?.sendEvent("onStepUpdate", [
+        "steps": data.numberOfSteps.intValue
+      ])
     }
   }
 }

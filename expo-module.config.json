@@ -1,9 +1,13 @@
 {
-  "platforms": ["apple", "android", "web"],
-  "apple": {
-    "modules": ["ExpoBackgroundServiceModule"]
+  "platforms": ["ios", "android"],
+  "ios": {
+    "modules": ["ExpoBackgroundServiceModule"],
+    "infoPlist": {
+      "NSMotionUsageDescription": "We need access to your motion sensors to track your steps in the background and provide reports.",
+      "UIBackgroundModes": ["fetch", "processing"]
+    }
   },
   "android": {
-    "modules": ["com.serifcicek.expobackgroundservice.ExpoBackgroundServiceModule"]
+    "modules": ["ExpoBackgroundServiceModule"]
   }
 }

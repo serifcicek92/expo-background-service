@@ -1,50 +1,71 @@
 package com.serifcicek.expobackgroundservice
 
+import android.app.ActivityManager
+import android.content.Context
+import android.content.Intent
+import android.os.Build
 import expo.modules.kotlin.modules.Module
 import expo.modules.kotlin.modules.ModuleDefinition
-import java.net.URL
 
 class ExpoBackgroundServiceModule : Module() {
-  // Each module class must implement the definition function. The definition consists of components
-  // that describes the module's functionality and behavior.
-  // See https://docs.expo.dev/modules/module-api for more details about available components.
+  
+  // Servis içinden bu modüle ulaşıp JS'e veri gönderebilmek için
+  companion object {
+    var instance: ExpoBackgroundServiceModule? = null
+  }
+
   override fun definition() = ModuleDefinition {
-    // Sets the name of the module that JavaScript code will use to refer to the module. Takes a string as an argument.
-    // Can be inferred from module's class name, but it's recommended to set it explicitly for clarity.
-    // The module will be accessible from `requireNativeModule('ExpoBackgroundService')` in JavaScript.
     Name("ExpoBackgroundService")
 
-    // Defines constant property on the module.
-    Constant("PI") {
-      Math.PI
+    // İŞTE TELSİZ KANALLARIMIZ: Adım değiştiğinde ve Zamanlayıcı çalıştığında JS'e haber vereceğiz
+    Events("onStepUpdate", "onTimerTick")
+
+    // Modül ayağa kalktığında instance'ı doldur
+    OnCreate {
+      instance = this@ExpoBackgroundServiceModule
+    }
+    
+    OnDestroy {
+      instance = null
     }
 
-    // Defines event names that the module can send to JavaScript.
-    Events("onChange")
-
-    // Defines a JavaScript synchronous function that runs the native code on the JavaScript thread.
     Function("hello") {
-      "Hello world! 👋"
+      return@Function "Sistem Hazır - Şerif Çiçek"
     }
 
-    // Defines a JavaScript function that always returns a Promise and whose native code
-    // is by default dispatched on the different thread than the JavaScript runtime runs on.
-    AsyncFunction("setValueAsync") { value: String ->
-      // Send an event to JavaScript.
-      sendEvent("onChange", mapOf(
-        "value" to value
-      ))
+    Function("getStepCount") {
+      val context = appContext.reactContext ?: return@Function 0
+      val prefs = context.getSharedPreferences("StepPrefs", Context.MODE_PRIVATE)
+      return@Function prefs.getInt("real_steps", 0)
     }
 
-    // Enables the module to be used as a native view. Definition components that are accepted as part of
-    // the view definition: Prop, Events.
-    View(ExpoBackgroundServiceView::class) {
-      // Defines a setter for the `url` prop.
-      Prop("url") { view: ExpoBackgroundServiceView, url: URL ->
-        view.webView.loadUrl(url.toString())
+    Function("isServiceRunning") {
+      val context = appContext.reactContext ?: return@Function false
+      val manager = context.getSystemService(Context.ACTIVITY_SERVICE) as ActivityManager
+      for (service in manager.getRunningServices(Integer.MAX_VALUE)) {
+        if (StepCounterService::class.java.name == service.service.className) {
+          return@Function true
+        }
       }
-      // Defines an event that the view can send to JavaScript.
-      Events("onLoad")
+      return@Function false
+    }
+
+    Function("stopService") {
+      val context = appContext.reactContext ?: return@Function "Hata"
+      val intent = Intent(context, StepCounterService::class.java)
+      context.stopService(intent)
+      return@Function "Servis Kapatıldı"
+    }
+
+    Function("startService") {
+      val context = appContext.reactContext ?: return@Function "Hata"
+      val intent = Intent(context, StepCounterService::class.java)
+      if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+        context.startForegroundService(intent)
+      } else {
+        context.startService(intent)
+      }
+      return@Function "Servis Başlatıldı!"
     }
   }
 }
