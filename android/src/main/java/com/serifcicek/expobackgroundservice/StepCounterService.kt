@@ -11,7 +11,8 @@ class StepCounterService : Service(), SensorEventListener {
     private var stepSensor: Sensor? = null
     private lateinit var notificationManager: NotificationManager
     private val NOTIFICATION_ID = 1
-
+    private var customTitle: String = "Step Counter"
+    private var customBody: String = "Calculate your steps..."
     private val handler = Handler(Looper.getMainLooper())
     private val periodicTask = object : Runnable {
         override fun run() {
@@ -24,6 +25,11 @@ class StepCounterService : Service(), SensorEventListener {
                 "message" to "Arka plandan selamlar, ben 60 saniyede bir çalışıyorum!"
             ))
 
+            val serviceIntent = Intent(applicationContext, ExpoBackgroundServiceHeadlessTaskService::class.java)
+            val bundle = Bundle()
+            bundle.putInt("steps", currentSteps) // Adımı gönderiyoruz
+            serviceIntent.putExtras(bundle)
+            applicationContext.startService(serviceIntent) // JS'i dürttük!
             // Örnek: Eğer adım sayısı 10.000'i geçerse özel bir bildirim fırlat
             if (currentSteps >= 10000) {
                 sendCustomNotification("Hedefe Ulaştın!", "10.000 adımı geçtin, tebrikler Şerif Abi!")
@@ -47,6 +53,9 @@ class StepCounterService : Service(), SensorEventListener {
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        intent?.getStringExtra("notificationTitle")?.let { customTitle = it }
+        intent?.getStringExtra("notificationBody")?.let { customBody = it }
+
         val prefs = getSharedPreferences("StepPrefs", Context.MODE_PRIVATE)
         val currentSteps = prefs.getInt("real_steps", 0)
 
@@ -102,12 +111,13 @@ class StepCounterService : Service(), SensorEventListener {
     }
 
     private fun getNotification(steps: Int): Notification {
+        val finalBody = val finalBody = "$steps $customBody"
         return NotificationCompat.Builder(this, "step_channel")
-            .setContentTitle("Şerif Çiçek App")
-            .setContentText("Bugün: $steps Adım")
-            .setSmallIcon(android.R.drawable.ic_menu_mylocation)
-            .setOnlyAlertOnce(true)
-            .build()
+        .setContentTitle(customTitle)
+        .setContentText(finalBody)
+        .setSmallIcon(android.R.drawable.ic_menu_mylocation)
+        .setOnlyAlertOnce(true)
+        .build()
     }
 
     private fun createNotificationChannel() {

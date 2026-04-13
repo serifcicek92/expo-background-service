@@ -57,15 +57,20 @@ class ExpoBackgroundServiceModule : Module() {
       return@Function "Servis Kapatıldı"
     }
 
-    Function("startService") {
+    Function("startService") { title: String, body: String ->
       val context = appContext.reactContext ?: return@Function "Hata"
       val intent = Intent(context, StepCounterService::class.java)
+      
+      // JS'den gelen metinleri Intent içine mühürlüyoruz
+      intent.putExtra("notificationTitle", title)
+      intent.putExtra("notificationBody", body)
+      
       if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-        context.startForegroundService(intent)
+          context.startForegroundService(intent)
       } else {
-        context.startService(intent)
+          context.startService(intent)
       }
-      return@Function "Servis Başlatıldı!"
+      return@Function "Servis Özel Metinle Başlatıldı!"
     }
   }
 }

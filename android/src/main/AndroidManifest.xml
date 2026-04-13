@@ -12,6 +12,7 @@
             android:enabled="true"
             android:exported="false"
             android:foregroundServiceType="health" />
+        <service android:name=".ExpoBackgroundServiceHeadlessTaskService" />
     </application>
 
 </manifest>
