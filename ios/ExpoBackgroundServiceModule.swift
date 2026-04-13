@@ -2,65 +2,60 @@ import ExpoModulesCore
 import CoreMotion
 
 public class ExpoBackgroundServiceModule: Module {
-  // iOS'un adım sayar motoru
   private let pedometer = CMPedometer()
 
   public func definition() -> ModuleDefinition {
-    // Paket ismi JS tarafıyla aynı olmalı
     Name("ExpoBackgroundService")
 
-    // Android'deki EventEmitter ile aynı isimde kanal açıyoruz
+    // Android ile aynı event isimlerini kullanıyoruz
     Events("onStepUpdate", "onTimerTick")
 
     Function("hello") {
-      return "iOS Sistem Hazır - Şerif Çiçek"
+      return "Sistem Hazır (iOS) - Şerif Çiçek"
     }
 
-    // Android'deki getStepCount ile aynı işi yapar
+    // Donanım sayacından o anki adımı çeker (Delta motoru için)
     AsyncFunction("getStepCount") { (promise: Promise) in
       guard CMPedometer.isStepCountingAvailable() else {
         promise.resolve(0)
         return
       }
-
+      
+      // Bugünün başlangıcından şu ana kadar olan adımları çekiyoruz
+      let calendar = Calendar.current
       let now = Date()
-      let startOfDay = Calendar.current.startOfDay(for: now)
+      let startOfDay = calendar.startOfDay(for: now)
 
-      // Bugünden itibaren olan adımları sorgula
       pedometer.queryPedometerData(from: startOfDay, to: now) { data, error in
-        if let data = data {
-          promise.resolve(data.numberOfSteps.intValue)
+        if let steps = data?.numberOfSteps {
+          promise.resolve(steps.intValue)
         } else {
           promise.resolve(0)
         }
       }
     }
 
-    Function("startService") {
-      self.startStepUpdates()
-      return "iOS Adım Takibi Başlatıldı"
+    Function("startService") { (title: String, body: String, initialSteps: Int) in
+      // iOS'ta bildirimli servis yok, ama takibi başlatıyoruz
+      self.startPedometerUpdates()
+      return "iOS Takibi Başlatıldı"
     }
 
     Function("stopService") {
-      self.pedometer.stopUpdates()
-      return "iOS Adım Takibi Durduruldu"
-    }
-    
-    // iOS'ta servis durumu kontrolü (Sensör aktif mi?)
-    Function("isServiceRunning") {
-        return true // iOS'ta sensör erişimi genellikle sistem seviyesindedir
+      pedometer.stopUpdates()
+      return "iOS Takibi Durduruldu"
     }
   }
 
-  private func startStepUpdates() {
+  private func startPedometerUpdates() {
     guard CMPedometer.isStepCountingAvailable() else { return }
 
     pedometer.startUpdates(from: Date()) { [weak self] data, error in
-      guard let data = data else { return }
+      guard let self = self, let steps = data?.numberOfSteps else { return }
       
-      // JS tarafındaki addStepListener'ı tetikler
-      self?.sendEvent("onStepUpdate", [
-        "steps": data.numberOfSteps.intValue
+      // JS tarafına anlık veri gönder (Android'deki onStepUpdate ile aynı)
+      self.sendEvent("onStepUpdate", [
+        "steps": steps.intValue
       ])
     }
   }
