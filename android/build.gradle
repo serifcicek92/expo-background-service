@@ -1,18 +1,35 @@
 plugins {
-  id 'com.android.library'
-  id 'expo-module-gradle-plugin'
+    id 'com.android.library'
+    id 'expo-module-gradle-plugin'
+    id 'kotlin-android'
 }
 
 group = 'com.serifcicek.expobackgroundservice'
 version = '0.1.0'
 
 android {
-  namespace "com.serifcicek.expobackgroundservice"
-  defaultConfig {
-    versionCode 1
-    versionName "0.1.0"
-  }
-  lintOptions {
-    abortOnError false
-  }
+    namespace "com.serifcicek.expobackgroundservice"
+    
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_11
+        targetCompatibility JavaVersion.VERSION_11
+    }
+
+    kotlinOptions {
+        jvmTarget = '11'
+    }
+
+    defaultConfig {
+        versionCode 1
+        versionName "0.1.0"
+    }
+
+    lintOptions {
+        abortOnError false
+    }
+}
+
+dependencies {
+    // İŞTE KRİTİK SATIR: React Native sınıflarını (HeadlessJS vb.) tanıması için ŞART
+    implementation "com.facebook.react:react-android"
 }
