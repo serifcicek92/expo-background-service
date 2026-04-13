@@ -13,8 +13,8 @@ export function getCurrentStepCount(): number {
 }
 
 // Şerif abi, işte buraya (title ve body) parametrelerini ekledik:
-export function startBackgroundService(title: string, body: string): string {
-  return (ExpoBackgroundServiceModule as any).startService(title, body);
+export function startBackgroundService(title: string, body: string, initialSteps: number = 0): string {
+  return (ExpoBackgroundServiceModule as any).startService(title, body, initialSteps);
 }
 
 export function stopBackgroundService(): string {
