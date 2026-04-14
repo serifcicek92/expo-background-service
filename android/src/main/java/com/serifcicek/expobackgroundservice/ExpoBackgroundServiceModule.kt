@@ -38,8 +38,14 @@ class ExpoBackgroundServiceModule : Module() {
       val context = appContext.reactContext ?: return@Function 0
       val prefs = context.getSharedPreferences("StepPrefs", Context.MODE_PRIVATE)
       
-      // Artık JS "Bana ham veriyi ver hesaplayayım" demiyor. 
-      // Doğrudan "Bildirimde net kaç yazıyor?" diye soruyor.
+      val savedDate = prefs.getString("saved_date", "")
+      val currentDate = java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.getDefault()).format(java.util.Date())
+
+      // GECE YARISI KALKANI: Gün değişmiş ama adam henüz adım atmamışsa
+      if (savedDate != currentDate && savedDate != "") {
+          return@Function 0 // Dünün verisini GÖNDERME!
+      }
+
       return@Function prefs.getInt("exact_notification_steps", 0)
     }
 

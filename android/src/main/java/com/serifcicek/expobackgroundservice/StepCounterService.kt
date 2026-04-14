@@ -11,15 +11,14 @@ class StepCounterService : Service(), SensorEventListener {
     private var stepSensor: Sensor? = null
     private lateinit var notificationManager: NotificationManager
     private val NOTIFICATION_ID = 1
-    private var customTitle: String = "Step Counter"
+    
+    private var customTitle: String = "StepMap Takip"
     private var customBody: String = "Adım"
 
     private val handler = Handler(Looper.getMainLooper())
     private val periodicTask = object : Runnable {
         override fun run() {
             val prefs = getSharedPreferences("StepPrefs", Context.MODE_PRIVATE)
-            
-            // AYNA MANTIĞI: Artık ham veriyi değil, bildirimde yazan NET veriyi okuyoruz!
             val currentDisplaySteps = prefs.getInt("exact_notification_steps", 0) 
             
             ExpoBackgroundServiceModule.instance?.sendEvent("onTimerTick", mapOf(
@@ -28,7 +27,7 @@ class StepCounterService : Service(), SensorEventListener {
 
             val serviceIntent = Intent(applicationContext, ExpoBackgroundServiceHeadlessTaskService::class.java)
             val bundle = Bundle()
-            bundle.putInt("steps", currentDisplaySteps) // Hayalet moda da NET veri gidiyor
+            bundle.putInt("steps", currentDisplaySteps)
             serviceIntent.putExtras(bundle)
             applicationContext.startService(serviceIntent)
             
@@ -50,14 +49,29 @@ class StepCounterService : Service(), SensorEventListener {
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-        intent?.getStringExtra("notificationTitle")?.let { customTitle = it }
-        intent?.getStringExtra("notificationBody")?.let { customBody = it }
-        
-        val initialSteps = intent?.getIntExtra("initialSteps", 0) ?: 0
         val prefs = getSharedPreferences("StepPrefs", Context.MODE_PRIVATE)
-        prefs.edit().putInt("daily_base_steps", initialSteps).apply()
 
-        startForeground(NOTIFICATION_ID, getNotification(initialSteps))
+        // NULL INTENT KORUMASI: Sistem servisi dirilttiğinde intent null gelir!
+        if (intent != null && intent.hasExtra("notificationTitle")) {
+            customTitle = intent.getStringExtra("notificationTitle") ?: "StepMap Takip"
+            customBody = intent.getStringExtra("notificationBody") ?: "Adım"
+            val initialSteps = intent.getIntExtra("initialSteps", 0)
+            
+            prefs.edit()
+                .putString("saved_title", customTitle)
+                .putString("saved_body", customBody)
+                .putInt("daily_base_steps", initialSteps)
+                .apply()
+        } else {
+            // Servis sistem tarafından geri diriltildi, eski başlıkları hafızadan çek!
+            customTitle = prefs.getString("saved_title", "StepMap Takip") ?: "StepMap"
+            customBody = prefs.getString("saved_body", "Adım") ?: "Adım"
+        }
+
+        // Çökmeyi engellemek için bildirimi anında bas!
+        val lastKnownSteps = prefs.getInt("exact_notification_steps", 0)
+        startForeground(NOTIFICATION_ID, getNotification(lastKnownSteps))
+        
         handler.post(periodicTask)
         return START_STICKY 
     }
@@ -79,29 +93,28 @@ class StepCounterService : Service(), SensorEventListener {
             var offset = prefs.getInt("offset_steps", -1)
             var dailyBase = prefs.getInt("daily_base_steps", 0)
 
+            // GECE YARISI SIFIRLAMASI
             if (offset == -1 || savedDate != currentDate || sensorValue < offset) {
                 offset = sensorValue
                 
                 if (savedDate != currentDate && savedDate != "") {
                     dailyBase = 0
-                    prefs.edit().putInt("daily_base_steps", 0).apply()
+                    // Gün değiştiyse, eski net adımı da sıfırla!
+                    prefs.edit().putInt("exact_notification_steps", 0).apply() 
                 }
                 
                 prefs.edit()
                     .putInt("offset_steps", offset)
+                    .putInt("daily_base_steps", dailyBase)
                     .putString("saved_date", currentDate)
                     .apply()
             }
 
-            // BİLDİRİMDE GÖRÜNEN NET SAYI
             val displaySteps = (sensorValue - offset) + dailyBase
             
-            // AYNA MANTIĞI: Bu net sayıyı JS her an okuyabilsin diye hafızaya yazıyoruz
             prefs.edit().putInt("exact_notification_steps", displaySteps).apply()
-
             notificationManager.notify(NOTIFICATION_ID, getNotification(displaySteps))
 
-            // JS'e (Canlı dinleyiciye) artık HAM veriyi değil, BİLDİRİMDEKİ NET SAYIYI gönderiyoruz
             ExpoBackgroundServiceModule.instance?.sendEvent("onStepUpdate", mapOf(
                 "steps" to displaySteps 
             ))
@@ -117,6 +130,7 @@ class StepCounterService : Service(), SensorEventListener {
             .setContentTitle(customTitle)
             .setContentText(finalBody)
             .setSmallIcon(android.R.drawable.ic_menu_mylocation)
+            .setOngoing(true) // Kullanıcı bildirimi yana kaydırıp silemesin
             .setOnlyAlertOnce(true)
             .build()
     }
