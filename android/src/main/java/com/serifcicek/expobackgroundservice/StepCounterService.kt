@@ -16,21 +16,35 @@ class StepCounterService : Service(), SensorEventListener {
     private var customBody: String = "Adım"
 
     private val handler = Handler(Looper.getMainLooper())
+    
+    // YENİ VE SADELEŞMİŞ KALP ATIŞI: Sadece Gece Bekçiliği yapar. JS'i boşuna dürtmez!
     private val periodicTask = object : Runnable {
         override fun run() {
             val prefs = getSharedPreferences("StepPrefs", Context.MODE_PRIVATE)
-            val currentDisplaySteps = prefs.getInt("exact_notification_steps", 0) 
             
-            ExpoBackgroundServiceModule.instance?.sendEvent("onTimerTick", mapOf(
-                "steps" to currentDisplaySteps
-            ))
-
-            val serviceIntent = Intent(applicationContext, ExpoBackgroundServiceHeadlessTaskService::class.java)
-            val bundle = Bundle()
-            bundle.putInt("steps", currentDisplaySteps)
-            serviceIntent.putExtras(bundle)
-            applicationContext.startService(serviceIntent)
+            // --- GECE YARISI KONTROLÜ (GECE BEKÇİSİ) ---
+            val currentDate = java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.getDefault()).format(java.util.Date())
+            val savedDate = prefs.getString("saved_date", "")
             
+            // Eğer gün değişmişse ve bu geçiş henüz işlenmemişse:
+            if (savedDate != "" && savedDate != currentDate) {
+                // Sensörün o anki ham değerini oku
+                val currentRaw = prefs.getInt("raw_sensor", 0) 
+                
+                // Her şeyi o anki sensör değerine eşitleyerek GÜNÜ SIFIRLA
+                prefs.edit()
+                    .putInt("offset_steps", currentRaw) 
+                    .putInt("daily_base_steps", 0)      
+                    .putInt("exact_notification_steps", 0) 
+                    .putString("saved_date", currentDate)
+                    .apply()
+                
+                // Bildirimi anında 0 olarak güncelle
+                notificationManager.notify(NOTIFICATION_ID, getNotification(0))
+            }
+            // -------------------------------------------
+            
+            // Her 1 dakikada bir saati kontrol et (60000 ms)
             handler.postDelayed(this, 60000)
         }
     }
@@ -63,15 +77,15 @@ class StepCounterService : Service(), SensorEventListener {
                 .putInt("daily_base_steps", initialSteps)
                 .apply()
         } else {
-            // Servis sistem tarafından geri diriltildi, eski başlıkları hafızadan çek!
+            // Servis diriltildi, eski başlıkları hafızadan çek
             customTitle = prefs.getString("saved_title", "StepMap Takip") ?: "StepMap"
             customBody = prefs.getString("saved_body", "Adım") ?: "Adım"
         }
 
-        // Çökmeyi engellemek için bildirimi anında bas!
         val lastKnownSteps = prefs.getInt("exact_notification_steps", 0)
         startForeground(NOTIFICATION_ID, getNotification(lastKnownSteps))
         
+        // Gece bekçisini başlat
         handler.post(periodicTask)
         return START_STICKY 
     }
@@ -87,19 +101,20 @@ class StepCounterService : Service(), SensorEventListener {
             val sensorValue = event.values[0].toInt()
             val prefs = getSharedPreferences("StepPrefs", Context.MODE_PRIVATE)
 
+            // GECE BEKÇİSİ İÇİN HAM VERİYİ KAYDET
+            prefs.edit().putInt("raw_sensor", sensorValue).apply()
+
             val currentDate = java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.getDefault()).format(java.util.Date())
             val savedDate = prefs.getString("saved_date", "")
 
             var offset = prefs.getInt("offset_steps", -1)
             var dailyBase = prefs.getInt("daily_base_steps", 0)
 
-            // GECE YARISI SIFIRLAMASI
             if (offset == -1 || savedDate != currentDate || sensorValue < offset) {
                 offset = sensorValue
                 
                 if (savedDate != currentDate && savedDate != "") {
                     dailyBase = 0
-                    // Gün değiştiyse, eski net adımı da sıfırla!
                     prefs.edit().putInt("exact_notification_steps", 0).apply() 
                 }
                 
@@ -115,6 +130,7 @@ class StepCounterService : Service(), SensorEventListener {
             prefs.edit().putInt("exact_notification_steps", displaySteps).apply()
             notificationManager.notify(NOTIFICATION_ID, getNotification(displaySteps))
 
+            // JS tarafındaki telsizi tetikle (Uygulama açıksa anında görürsün)
             ExpoBackgroundServiceModule.instance?.sendEvent("onStepUpdate", mapOf(
                 "steps" to displaySteps 
             ))
@@ -130,7 +146,7 @@ class StepCounterService : Service(), SensorEventListener {
             .setContentTitle(customTitle)
             .setContentText(finalBody)
             .setSmallIcon(android.R.drawable.ic_menu_mylocation)
-            .setOngoing(true) // Kullanıcı bildirimi yana kaydırıp silemesin
+            .setOngoing(true) 
             .setOnlyAlertOnce(true)
             .build()
     }
