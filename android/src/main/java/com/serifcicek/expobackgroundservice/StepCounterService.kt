@@ -16,6 +16,9 @@ class StepCounterService : Service(), SensorEventListener {
     private var customBody: String = "Adım"
 
     private val handler = Handler(Looper.getMainLooper())
+
+    //per 30 minute check if day has changed, if so reset the step count to 0 (or to the current sensor value as offset)
+    private var minuteCounter = 0
     
     // YENİ VE SADELEŞMİŞ KALP ATIŞI: Sadece Gece Bekçiliği yapar. JS'i boşuna dürtmez!
     private val periodicTask = object : Runnable {
@@ -44,6 +47,22 @@ class StepCounterService : Service(), SensorEventListener {
             }
             // -------------------------------------------
             
+
+            //increase minute counter
+            minuteCounter++
+
+            if (minuteCounter >= 30) { // 30 dakika oldu mu?
+                // get last steps from prefs to show in notification (instead of 0)
+                val currentDisplaySteps = prefs.getInt("exact_notification_steps", 0)
+                
+                // Bildirime "Al bu rakamı zorla ekrana bas" de
+                notificationManager.notify(NOTIFICATION_ID, getNotification(currentDisplaySteps))
+                
+                // Sayacı tekrar sıfırla ki bir sonraki 30 dakikayı saymaya başlasın
+                minuteCounter = 0 
+            }
+
+
             // Her 1 dakikada bir saati kontrol et (60000 ms)
             handler.postDelayed(this, 60000)
         }
