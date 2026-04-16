@@ -17,8 +17,8 @@ class ExpoBackgroundServiceModule : Module() {
   override fun definition() = ModuleDefinition {
     Name("ExpoBackgroundService")
 
-    // İŞTE TELSİZ KANALLARIMIZ: Adım değiştiğinde ve Zamanlayıcı çalıştığında JS'e haber vereceğiz
-    Events("onStepUpdate", "onTimerTick")
+    // DÜZELTME 1: "onStepDetected" telsiz kanalını buraya ekledik!
+    Events("onStepUpdate", "onTimerTick", "onStepDetected")
 
     // Modül ayağa kalktığında instance'ı doldur
     OnCreate {
@@ -33,7 +33,6 @@ class ExpoBackgroundServiceModule : Module() {
       return@Function "Sistem Hazır - Şerif Çiçek"
     }
 
-    // --- AYNA MANTIĞI: EN KRİTİK DEĞİŞİKLİK BURASI ---
     Function("getStepCount") {
       val context = appContext.reactContext ?: return@Function 0
       val prefs = context.getSharedPreferences("StepPrefs", Context.MODE_PRIVATE)
@@ -41,14 +40,14 @@ class ExpoBackgroundServiceModule : Module() {
       val savedDate = prefs.getString("saved_date", "")
       val currentDate = java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.getDefault()).format(java.util.Date())
 
-      // GECE YARISI KALKANI: Gün değişmiş ama adam henüz adım atmamışsa
       if (savedDate != currentDate && savedDate != "") {
-          return@Function 0 // Dünün verisini GÖNDERME!
+          return@Function 0 
       }
 
       return@Function prefs.getInt("exact_notification_steps", 0)
     }
 
+    // DÜZELTME 2: Fonksiyonlar arasındaki hatalı virgüller (,) temizlendi!
     Function("isServiceRunning") {
       val context = appContext.reactContext ?: return@Function false
       val manager = context.getSystemService(Context.ACTIVITY_SERVICE) as ActivityManager
@@ -60,6 +59,44 @@ class ExpoBackgroundServiceModule : Module() {
       return@Function false
     }
 
+    Function("getStepCounterValue") {
+        val context = appContext.reactContext ?: return@Function 0
+        val prefs = context.getSharedPreferences("StepPrefs", Context.MODE_PRIVATE)
+        return@Function prefs.getInt("raw_sensor", 0)
+    }
+
+    Function("startStepDetection") {
+        val context = appContext.reactContext ?: return@Function false
+        val sensorManager = context.getSystemService(Context.SENSOR_SERVICE) as android.hardware.SensorManager
+        val detectorSensor = sensorManager.getDefaultSensor(android.hardware.Sensor.TYPE_STEP_DETECTOR)
+
+        val listener = object : android.hardware.SensorEventListener {
+            override fun onSensorChanged(event: android.hardware.SensorEvent?) {
+                sendEvent("onStepDetected", mapOf("detected" to true))
+            }
+            override fun onAccuracyChanged(sensor: android.hardware.Sensor?, accuracy: Int) {}
+        }
+
+        sensorManager.registerListener(listener, detectorSensor, android.hardware.SensorManager.SENSOR_DELAY_UI)
+        return@Function true
+    }
+
+    // DÜZELTME 3: index.ts'te olan ama burada unutulan getSensorStatus eklendi!
+    Function("getSensorStatus") {
+        val context = appContext.reactContext ?: return@Function mapOf("error" to "Context bulunamadı")
+        val sensorManager = context.getSystemService(Context.SENSOR_SERVICE) as android.hardware.SensorManager
+        
+        val detector = sensorManager.getDefaultSensor(android.hardware.Sensor.TYPE_STEP_DETECTOR)
+        val counter = sensorManager.getDefaultSensor(android.hardware.Sensor.TYPE_STEP_COUNTER)
+
+        return@Function mapOf(
+            "hasDetector" to (detector != null),
+            "detectorName" to (detector?.name ?: "Mevcut Değil"),
+            "hasCounter" to (counter != null),
+            "counterName" to (counter?.name ?: "Mevcut Değil")
+        )
+    }
+
     Function("stopService") {
       val context = appContext.reactContext ?: return@Function "Hata"
       val intent = Intent(context, StepCounterService::class.java)
@@ -67,13 +104,14 @@ class ExpoBackgroundServiceModule : Module() {
       return@Function "Servis Kapatıldı"
     }
 
+    // DÜZELTME 4: Yanlışlıkla silinen Function("startService") başlığı geri getirildi!
     Function("startService") { title: String, body: String, initialSteps: Int ->
       val context = appContext.reactContext ?: return@Function "Hata"
       val intent = Intent(context, StepCounterService::class.java)
       
       intent.putExtra("notificationTitle", title)
       intent.putExtra("notificationBody", body)
-      intent.putExtra("initialSteps", initialSteps) // JS'ten gelen taban adım
+      intent.putExtra("initialSteps", initialSteps) 
       
       if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
           context.startForegroundService(intent)

@@ -35,3 +35,27 @@ export function addStepListener(listener: (event: { steps: number }) => void): a
 export function addTimerListener(listener: (event: { steps: number, message: string }) => void): any {
   return (emitter as any).addListener('onTimerTick', listener);
 }
+
+// ====================================================================
+// --- YENİ EKLENEN ÖZEL SENSÖR METODLARI (ŞERİF ABİ'NİN KONTROLÜNDE) ---
+// ====================================================================
+
+// 1. Donanım Raporu: Sensörler telefonda var mı diye bakar.
+export async function getSensorStatus(): Promise<any> {
+  return await (ExpoBackgroundServiceModule as any).getSensorStatus();
+}
+
+// 2. Sayaç (Getter): O anki ham toplam sayacı çeker (Pull mantığı).
+export async function getStepCounterValue(): Promise<number> {
+  return await (ExpoBackgroundServiceModule as any).getStepCounterValue();
+}
+
+// 3. Dedektör Başlat (Trigger): Anlık adım tıklarını dinlemeye başlar.
+export async function startStepDetection(): Promise<boolean> {
+  return await (ExpoBackgroundServiceModule as any).startStepDetection();
+}
+
+// 4. Dedektör Dinleyici (Listener): Her adımda tetiklenir (Push mantığı).
+export function addStepDetectedListener(listener: (event: { detected: boolean }) => void): any {
+  return (emitter as any).addListener('onStepDetected', listener);
+}
