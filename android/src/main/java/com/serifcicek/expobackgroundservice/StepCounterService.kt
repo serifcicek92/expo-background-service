@@ -73,11 +73,34 @@ class StepCounterService : Service(), SensorEventListener {
         notificationManager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
         createNotificationChannel()
 
+        // 1. GİZLİ VE SESSİZ İŞLEMCİ KİLİDİ (Kullanıcıya asla sorulmaz)
+        val powerManager = getSystemService(Context.POWER_SERVICE) as PowerManager
+        val wakeLock = powerManager.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "StepMap::PedometerWakeLock")
+
+        wakeLock.acquire()
+
         sensorManager = getSystemService(Context.SENSOR_SERVICE) as SensorManager
         stepSensor = sensorManager?.getDefaultSensor(Sensor.TYPE_STEP_COUNTER)
         
         stepSensor?.let {
-            sensorManager?.registerListener(this, it, SensorManager.SENSOR_DELAY_UI)
+            // ====================================================================
+            // 🚀 BÜYÜK UYGULAMALARIN SIRRI: SENSOR BATCHING (PAKETLEME)
+            // ====================================================================
+            // Android'e diyoruz ki: "Bana saniyede bir adım gönderme. 
+            // Donanım çipinde biriktir, 60 saniyede bir (60.000.000 mikrosaniye) topluca gönder."
+            // Bu sayede Android "Bu uygulama pil dostu" der ve servisi ASLA öldürmez!
+            val batchDelayMicroseconds = 60000000 
+            
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
+                sensorManager?.registerListener(
+                    this, 
+                    it, 
+                    SensorManager.SENSOR_DELAY_NORMAL, 
+                    batchDelayMicroseconds // İşte sistemi uyutmayan sihirli parametre
+                )
+            } else {
+                sensorManager?.registerListener(this, it, SensorManager.SENSOR_DELAY_NORMAL)
+            }
         }
     }
 
