@@ -89,7 +89,7 @@ class StepCounterService : Service(), SensorEventListener {
             // Android'e diyoruz ki: "Bana saniyede bir adım gönderme. 
             // Donanım çipinde biriktir, 60 saniyede bir (60.000.000 mikrosaniye) topluca gönder."
             // Bu sayede Android "Bu uygulama pil dostu" der ve servisi ASLA öldürmez!
-            val batchDelayMicroseconds = 60000000 
+            val batchDelayMicroseconds = 300000000 
             
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
                 sensorManager?.registerListener(
