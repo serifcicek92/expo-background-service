@@ -59,10 +59,43 @@ class ExpoBackgroundServiceModule : Module() {
       return@Function false
     }
 
+    // Function("getStepCounterValue") {
+    //     val context = appContext.reactContext ?: return@Function 0
+    //     val prefs = context.getSharedPreferences("StepPrefs", Context.MODE_PRIVATE)
+    //     return@Function prefs.getInt("raw_sensor", 0)
+    // }
     Function("getStepCounterValue") {
         val context = appContext.reactContext ?: return@Function 0
-        val prefs = context.getSharedPreferences("StepPrefs", Context.MODE_PRIVATE)
-        return@Function prefs.getInt("raw_sensor", 0)
+        val sensorManager = context.getSystemService(Context.SENSOR_SERVICE) as SensorManager
+        val stepCounter = sensorManager.getDefaultSensor(Sensor.TYPE_STEP_COUNTER)
+
+        if (stepCounter == null) return@Function -1
+
+        // 1. Bir "Dur Tabelası" (Latch) oluşturuyoruz. 1 adet veri bekliyoruz.
+        val latch = java.util.concurrent.CountDownLatch(1)
+        var currentValue = 0
+
+        val tempListener = object : SensorEventListener {
+            override fun onSensorChanged(event: SensorEvent?) {
+                if (event?.sensor?.type == Sensor.TYPE_STEP_COUNTER) {
+                    currentValue = event.values[0].toInt()
+                    // 2. Veriyi aldık! Dur tabelasını kaldır, yol açılsın.
+                    latch.countDown()
+                }
+            }
+            override fun onAccuracyChanged(sensor: Sensor?, accuracy: Int) {}
+        }
+
+        sensorManager.registerListener(tempListener, stepCounter, SensorManager.SENSOR_DELAY_FASTEST)
+
+        // 3. KRİTİK NOKTA: Burada bekliyoruz. 
+        // Maksimum 1 saniye bekle, gelmezse devam et (Uygulama donmasın diye)
+        latch.await(1000, java.util.concurrent.TimeUnit.MILLISECONDS)
+
+        // 4. Değeri aldık veya süre doldu, artık dinleyiciyi kapatabiliriz.
+        sensorManager.unregisterListener(tempListener)
+
+        return@Function currentValue
     }
 
     Function("startStepDetection") {
