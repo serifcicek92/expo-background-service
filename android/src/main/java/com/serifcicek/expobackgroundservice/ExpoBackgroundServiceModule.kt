@@ -76,7 +76,6 @@ class ExpoBackgroundServiceModule : Module() {
 
         if (stepCounter == null) return@Function -1
 
-        // 1. Bir "Dur Tabelası" (Latch) oluşturuyoruz. 1 adet veri bekliyoruz.
         val latch = java.util.concurrent.CountDownLatch(1)
         var currentValue = 0
 
@@ -84,21 +83,32 @@ class ExpoBackgroundServiceModule : Module() {
             override fun onSensorChanged(event: SensorEvent?) {
                 if (event?.sensor?.type == Sensor.TYPE_STEP_COUNTER) {
                     currentValue = event.values[0].toInt()
-                    // 2. Veriyi aldık! Dur tabelasını kaldır, yol açılsın.
                     latch.countDown()
                 }
             }
             override fun onAccuracyChanged(sensor: Sensor?, accuracy: Int) {}
         }
 
+        // 1. Dinleyiciyi en hızlı modda başlat (Batching'i burada pas geçiyoruz)
         sensorManager.registerListener(tempListener, stepCounter, SensorManager.SENSOR_DELAY_FASTEST)
 
-        // 3. KRİTİK NOKTA: Burada bekliyoruz. 
-        // Maksimum 1 saniye bekle, gelmezse devam et (Uygulama donmasın diye)
-        latch.await(1000, java.util.concurrent.TimeUnit.MILLISECONDS)
+        // 2. SİHİRLİ DOKUNUŞ: Flush komutu. 
+        // Donanıma "Elde ne varsa hemen dök" diyoruz.
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.KITKAT) {
+            sensorManager.flush(tempListener)
+        }
 
-        // 4. Değeri aldık veya süre doldu, artık dinleyiciyi kapatabiliriz.
+        // 3. Bekleme süresini biraz daha insancıl yapalım (örn: 500ms yeterli olmalı)
+        latch.await(500, java.util.concurrent.TimeUnit.MILLISECONDS)
+
         sensorManager.unregisterListener(tempListener)
+
+        // 4. Eğer hala 0 dönüyorsa, SharedPreferences'taki "raw_sensor"ı B planı olarak dön
+        if (currentValue == 0) {
+            val prefs = context.getSharedPreferences("StepPrefs", Context.MODE_PRIVATE)
+            currentValue = prefs.getInt("raw_sensor", 0)
+            
+        }
 
         return@Function currentValue
     }
